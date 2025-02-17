@@ -67,7 +67,7 @@ const app = Vue.createApp({
             keyToPress: '', 
             circleStarted: false,
             streak: 0,
-            needed: 4, // Ile trzeba zrobić dobrze żeby wygrać
+            needed: 4,
             startNumer: 1,
             endNumer: 4,
         };
@@ -112,7 +112,7 @@ const app = Vue.createApp({
             this.gStart = this.getRandomInt(20, 40) / 100; 
             this.gEnd = this.gStart + this.getRandomInt(5, 15) / 100; 
             this.progressAngle = 0; 
-            this.keyToPress = '' + this.getRandomInt(this.startNumer, this.endNumer);  // Zakres liczb 1-4
+            this.keyToPress = '' + this.getRandomInt(this.startNumer, this.endNumer); 
             this.animateProgress();
         },
         animateProgress() {
