@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        svg {
+            transform: rotate(-90deg); 
+        }
+
+        .number {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 50px;
+            color: white;
+            font-family: sans-serif;
+        }
+
+        .hide {
+            display: none;
+        }
+
+    </style>
+</head>
+<body>
+<div id="app" class="hide">
+    <svg width="80" height="80" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="45" stroke="#2B312B" stroke-width="10" fill="none"></circle>
+        <circle cx="50" cy="50" r="45" stroke="#555" stroke-width="10" fill="none"></circle>
+        <path 
+            :d="describeArc(50, 50, 45, gStartAngle, gEndAngle)" 
+            fill="none" 
+            stroke="#068f6d" 
+            stroke-width="10"
+        ></path>
+        <path 
+            :d="describeArc(50, 50, 45, progressStartAngle, progressEndAngle)" 
+            fill="none" 
+            stroke="#38D5AF" 
+            stroke-width="10"
+            style="opacity: 80%;"
+        ></path>
+    </svg>
+    <div class="number">{{ keyToPress }}</div>
+</div>
+
+<script>
+const app = Vue.createApp({
+    data() {
+        return {
+            isVisible: false,
+            progressAngle: 0, 
+            gStart: 0.2, 
+            gEnd: 0.3, 
+            progressSpeed: 1, 
+            keyToPress: '', 
+            circleStarted: false,
+            streak: 0,
+            needed: 4, // Ile trzeba zrobić dobrze żeby wygrać
+            startNumer: 1,
+            endNumer: 4,
+        };
+    },
+    computed: {
+        gStartAngle() {
+            return this.gStart * 360;
+        },
+        gEndAngle() {
+            return this.gEnd * 360;
+        },
+        progressStartAngle() {
+            return this.progressAngle;
+        },
+        progressEndAngle() {
+            return this.progressAngle + 5; 
+        },
+    },
+    methods: {
+        getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1) + min);
+        },
+        describeArc(x, y, radius, startAngle, endAngle) {
+            const start = this.polarToCartesian(x, y, radius, endAngle);
+            const end = this.polarToCartesian(x, y, radius, startAngle);
+            const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+
+            return [
+                "M", start.x, start.y,
+                "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y
+            ].join(" ");
+        },
+        polarToCartesian(centerX, centerY, radius, angleInDegrees) {
+            const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+
+            return {
+                x: centerX + (radius * Math.cos(angleInRadians)),
+                y: centerY + (radius * Math.sin(angleInRadians))
+            };
+        },
+        startCircle() {
+            this.gStart = this.getRandomInt(20, 40) / 100; 
+            this.gEnd = this.gStart + this.getRandomInt(5, 15) / 100; 
+            this.progressAngle = 0; 
+            this.keyToPress = '' + this.getRandomInt(this.startNumer, this.endNumer);  // Zakres liczb 1-4
+            this.animateProgress();
+        },
+        animateProgress() {
+            const interval = setInterval(() => {
+                if (!this.circleStarted) {
+                    clearInterval(interval);
+                    return;
+                }
+
+                if (this.progressAngle >= 360) {
+                    clearInterval(interval);
+                    this.endGame(false);
+                } else {
+                    this.progressAngle += this.progressSpeed;
+                }
+            }, 20);
+        },
+        checkKeyPress(ev) {
+            if (this.circleStarted) {
+                const dStart = this.gStart * 360;
+                const dEnd = this.gEnd * 360;
+
+                const validKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9']; 
+
+                if (validKeys.includes(ev.key)) {
+                    if (
+                        this.progressStartAngle >= dStart &&
+                        this.progressStartAngle <= dEnd &&
+                        ev.key === this.keyToPress
+                    ) {
+                        this.correct();
+                    } else {
+                        this.endGame(false);
+                    }
+                }
+            }
+        },
+        correct() {
+            this.streak++;
+            if (this.streak === this.needed) {
+                this.endGame(true);
+            } else {
+                this.startCircle();
+            }
+        },
+        endGame(status) {
+           this.circleStarted = false;
+           this.streak = 0;
+
+           this.close(status);
+        },
+        startGame() {
+            this.circleStarted = true;
+            this.streak = 0;
+            this.startCircle();
+        },
+        display(bool) {
+            if(bool){
+                document.getElementById("app").classList.remove("hide");
+            }
+
+            this.isVisible = bool;
+        },
+        close(data) {
+            document.getElementById("app").classList.add("hide");
+            fetch('https://ws-lockpick/nuiResponse', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ success: data })
+            })
+        }
+    },
+    created() {
+        this.display(false);
+        window.addEventListener("message", event => {
+            var item = event.data;
+            if (item.type === "ui") {
+                this.display(item.status);
+                if (this.isVisible) {
+                    setTimeout(() => {
+                        window.addEventListener("keydown", this.checkKeyPress);
+                        this.startGame();
+                    }, 10);
+                }
+            }
+        });
+    },
+});
+app.mount("#app");
+</script>
+</body>
+</html>
